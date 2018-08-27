@@ -24,14 +24,14 @@ public class CreateTest {
 
         ObservableOnSubscribe<Integer> handler = emitter -> {
 
-            Future future = executor.schedule(() -> {
+            Future future = executor.scheduleAtFixedRate(() -> {
                 if (!emitter.isDisposed()) {
                     for (int i = 0; i < 10; i++) {
                         emitter.onNext(i);
                     }
                     emitter.onComplete();
                 }
-            }, 1, TimeUnit.SECONDS);
+            }, 0, 1L, TimeUnit.SECONDS);
 
             emitter.setCancellable(() -> future.cancel(false));
 
@@ -45,7 +45,7 @@ public class CreateTest {
                 () -> System.out.println("Done")
         );
 
-        Thread.sleep(2000);
+        Thread.sleep(4000);
         executor.shutdown();
 
 
