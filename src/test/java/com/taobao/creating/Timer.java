@@ -1,4 +1,4 @@
-package com.taobao;
+package com.taobao.creating;
 
 import io.reactivex.Observable;
 import io.reactivex.Observer;
@@ -16,7 +16,7 @@ public class Timer {
 
     @Test
     public void test() {
-        Observable<Long> observable = Observable.timer(5, TimeUnit.SECONDS);
+        Observable<Long> observable = Observable.timer(6, TimeUnit.SECONDS);
         observable.blockingSubscribe(new Observer<Long>() {
             @Override
             public void onSubscribe(Disposable d) {

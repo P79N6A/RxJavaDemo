@@ -1,4 +1,4 @@
-package com.taobao;
+package com.taobao.creating;
 
 import io.reactivex.Observable;
 import org.junit.Test;
@@ -21,6 +21,7 @@ public class ErrorTest {
             throw new IllegalArgumentException();
         });
 
+        //合并来上一个Observable，对异常进行来包装
         Observable<String> result = observable.onErrorResumeNext(error -> {
             if (error instanceof IllegalArgumentException) {
                 return Observable.empty();
@@ -34,5 +35,15 @@ public class ErrorTest {
                     error -> error.printStackTrace(),
                     () -> System.out.println("Done"));
         }
+    }
+
+    @Test
+    public void testSimple(){
+        Observable<String> error = Observable.error(new IOException());
+
+        error.subscribe(
+                v -> System.out.println("This should never be printed!"),
+                throwable -> throwable.printStackTrace(),
+                () -> System.out.println("This neither!"));
     }
 }

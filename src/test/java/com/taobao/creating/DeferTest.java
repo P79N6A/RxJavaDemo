@@ -1,5 +1,6 @@
-package com.taobao;
+package com.taobao.creating;
 
+import com.taobao.SomeType;
 import io.reactivex.Observable;
 import org.junit.Test;
 
