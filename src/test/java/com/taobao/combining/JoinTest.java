@@ -1,6 +1,8 @@
 package com.taobao.combining;
 
 import io.reactivex.Observable;
+import io.reactivex.functions.BiFunction;
+import io.reactivex.functions.Function;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -15,21 +17,31 @@ public class JoinTest {
     @Test
     public void test() throws InterruptedException {
 
-        Observable<Long> ob1 = Observable.interval(0, 3, TimeUnit.SECONDS);
+        Observable ob1 = Observable.just(1, 2, 3).delay(100, TimeUnit.MILLISECONDS);
 
-        Observable<Long> ob2 = Observable.interval(0, 1, TimeUnit.SECONDS);
+        Observable ob2 = Observable.just(4, 5, 6);
 
-        ob1.join(ob2,
-                aLong -> {
-                    //System.out.println("left接收了：" + aLong);
-                    return Observable.empty();
-                },
-                aLong -> {
-                    //System.out.println("right接收了：" + aLong);
-                    return Observable.never();
-                },
-                (left, right) -> "left = " + left + ",right = " + right).
-                blockingSubscribe(System.out::println);
+        ob1.join(ob2, new Function<Integer, Observable<String>>() {
+
+            @Override
+            public Observable<String> apply(Integer integer) throws Exception {
+                System.out.println("left:" + integer);
+                return Observable.just(integer.toString()).delay(200, TimeUnit.MILLISECONDS);
+            }
+        }, new Function<Integer, Observable<String>>() {
+
+            @Override
+            public Observable<String> apply(Integer integer) throws Exception {
+                System.out.println("right:" + integer);
+                return Observable.just(integer.toString()).delay(200, TimeUnit.MILLISECONDS);
+            }
+        }, new BiFunction<Integer, Integer, String>() {
+
+            @Override
+            public String apply(Integer integer, Integer integer2) throws Exception {
+                return integer + ":" + integer2;
+            }
+        }).blockingSubscribe(System.out::println);
 
 
     }
