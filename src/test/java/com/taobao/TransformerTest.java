@@ -18,11 +18,6 @@ public class TransformerTest {
     }
 
     private ObservableTransformer<Integer, String> transformer() {
-        return new ObservableTransformer<Integer, String>() {
-            @Override
-            public ObservableSource<String> apply(Observable<Integer> upstream) {
-                return upstream.map(integer -> "transform:" + String.valueOf(integer));
-            }
-        };
+        return (upstream) -> upstream.map(integer -> "transform:" + String.valueOf(integer));
     }
 }

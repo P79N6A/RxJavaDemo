@@ -1,6 +1,8 @@
 package com.taobao;
 
 import io.reactivex.Flowable;
+import io.reactivex.processors.PublishProcessor;
+import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -16,7 +18,7 @@ public class BackpressureTest {
 
     @Test
     public void test() {
-        Flowable.range(0,10).subscribe(new Subscriber<Integer>() {
+        Flowable.range(0, 10).subscribe(new Subscriber<Integer>() {
 
             Subscription subscription;
 
@@ -55,7 +57,15 @@ public class BackpressureTest {
      * 响应式拉取
      */
     @Test
-    public void reactivePull() {
+    public void reactivePull() throws InterruptedException {
+        PublishProcessor<Integer> source = PublishProcessor.create();
+        source.observeOn(Schedulers.computation())
+                .subscribe(System.out::println);
 
+        for (int i = 0; i < 100; i++) {
+            source.onNext(i);
+        }
+
+        TimeUnit.SECONDS.sleep(3);
     }
 }

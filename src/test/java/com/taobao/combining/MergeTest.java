@@ -29,6 +29,22 @@ public class MergeTest {
     }
 
     @Test
+    public void diffConcat() {
+        Observable.merge(
+                Observable.intervalRange(1,10,0,100, TimeUnit.MILLISECONDS).map(id -> "A" + id),
+                Observable.intervalRange(1,10,0,100, TimeUnit.MILLISECONDS).map(id -> "B" + id))
+                .blockingSubscribe(System.out::print);
+
+        System.out.println();
+        System.out.println("===============concat=================");
+
+        Observable.concat(
+                Observable.intervalRange(1,10,0,100, TimeUnit.MILLISECONDS).map(id -> "A" + id),
+                Observable.intervalRange(1,10,0,100, TimeUnit.MILLISECONDS).map(id -> "B" + id))
+                .blockingSubscribe(System.out::print);
+    }
+
+    @Test
     public void testError() {
         Observable<Long> intervalRange = Observable.intervalRange(1, 20, 0, 1, TimeUnit.SECONDS);
 
@@ -47,7 +63,7 @@ public class MergeTest {
             }
         });
 
-        Observable.mergeDelayError(intervalRange,observable).blockingSubscribe(System.out::println, throwable -> throwable.printStackTrace());
+        Observable.mergeDelayError(intervalRange, observable).blockingSubscribe(System.out::println, throwable -> throwable.printStackTrace());
 
     }
 }
