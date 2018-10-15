@@ -16,13 +16,13 @@ public class TimingWheelTest {
     @Test
     public void testStart() throws InterruptedException {
 
-        TimingWheel<Integer> timingWheel = new TimingWheel(1, 60, TimeUnit.SECONDS);
+        TimingWheel<Integer> timingWheel = new TimingWheel(1, 2, TimeUnit.MILLISECONDS);
         timingWheel.addExpirationListener(i -> System.out.println("接收处理事件：" + i));
         timingWheel.start();
-        timingWheel.add(1);
-        timingWheel.add(2);
-        timingWheel.stop();
+        System.out.println(timingWheel.add(1));
+        System.out.println(timingWheel.add(2));
 
-        TimeUnit.HOURS.sleep(1);
+        TimeUnit.HOURS.sleep(3);
+        timingWheel.stop();
     }
 }

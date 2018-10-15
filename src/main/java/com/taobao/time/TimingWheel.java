@@ -85,7 +85,7 @@ public class TimingWheel<E> {
 
         this.wheel = new ArrayList<>();
         this.tickDuration = TimeUnit.MILLISECONDS.convert(tickDuration, timeUnit);//统一转化成毫秒
-        this.ticksPerWheel = ticksPerWheel + 1;//TODO 为什么要加1？
+        this.ticksPerWheel = ticksPerWheel + 1;//开始从0开始，增加tickDuration移动一格
 
         for (int i = 0; i < this.ticksPerWheel; i++) {
             wheel.add(new Slot(i));
