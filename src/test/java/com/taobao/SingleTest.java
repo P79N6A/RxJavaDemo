@@ -48,4 +48,13 @@ public class SingleTest {
                 .onErrorReturnItem(false).filter(s -> (boolean) s).subscribe(s -> System.out.println(s));
     }
 
+    @Test
+    public void toMaybe() {
+        Single.create(emitter -> {
+            if (new Random().nextInt() % 2 == 0) {
+                emitter.onSuccess(true);
+            }
+        }).toMaybe().subscribe(System.out::println);
+    }
+
 }
