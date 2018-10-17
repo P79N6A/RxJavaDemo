@@ -90,4 +90,6 @@ public class MaybeTest {
         System.out.println("Fallback executed anyway");
         return Maybe.just(2);
     }
+
+
 }

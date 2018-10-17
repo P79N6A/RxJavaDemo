@@ -39,4 +39,11 @@ public class FlowableTest {
         });
 
     }
+
+    @Test
+    public void firstElement() {
+        //firstElement() operator, which is similar to first(), but it returns an empty result if no elements are emitted
+        Flowable.just(1, 2, 3).firstElement().subscribe(System.out::println);
+        Flowable.empty().firstElement().subscribe(i -> System.out.println(i), throwable -> throwable.printStackTrace(), () -> System.out.println("complete"));
+    }
 }
