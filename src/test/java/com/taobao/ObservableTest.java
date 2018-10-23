@@ -4,11 +4,13 @@ import io.reactivex.Observable;
 import io.reactivex.Observer;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.BiPredicate;
+import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author huichi  shaokai.ysk@alibaba-inc.com
@@ -28,6 +30,39 @@ public class ObservableTest {
         length(observable);
 
 
+    }
+
+    @Test
+    public void backpressure() {
+        //The program above (with observeOn() operator commented out) runs just fine because it has accidental backpressure.
+        // By default everything is single threaded in RxJava, thus producer and consumer work within the same thread.
+        // Invoking subscriber.onNext() actually blocks, so the while loop throttles itself automatically
+        Observable.create(emitter -> {
+            long state = 0;
+            while (!emitter.isDisposed()) {
+                emitter.onNext(state++);
+            }
+        }).subscribe(i -> {
+            TimeUnit.MILLISECONDS.sleep(1);
+            System.out.println(i);
+        });
+
+
+    }
+
+    @Test
+    public void backpressure2(){
+        //增加observeOn,运行时间长会导致异常
+        Observable.create(emitter -> {
+            long state = 0;
+            while (!emitter.isDisposed()) {
+                emitter.onNext(state++);
+            }
+        }).observeOn(Schedulers.io())
+                .subscribe(i -> {
+                    TimeUnit.MILLISECONDS.sleep(1);
+                    System.out.println(i);
+                },throwable -> throwable.printStackTrace());
     }
 
     @Test
@@ -63,13 +98,11 @@ public class ObservableTest {
         subscribe(observable.retry(2));
 
         System.out.println("===========重试 BiPredicate===========");
-        subscribe(observable.retry(new BiPredicate<Integer, Throwable>() {
-            @Override
-            public boolean test(Integer integer, Throwable throwable) throws Exception {
-                System.out.println(integer);
-                return true;
-            }
-        }));
+        subscribe(observable.retry(((integer, throwable) -> {
+            //可以根据重试次数integer和异常类型throwable觉决定是否需要重试
+            System.out.println(integer);
+            return true;
+        })));
 
     }
 
