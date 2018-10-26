@@ -40,6 +40,21 @@ public class SingleTest {
     }
 
     @Test
+    public void filter() {
+//        The filter() operator accepts Predicate<T> for a given Observable<T>. This means that you provide it a lambda
+//        that qualifies each emission by mapping it to a Boolean value, and emissions with false will not go
+//        forward.
+
+        Single.create(emitter -> {
+            if (new Random().nextInt(10) % 2 == 0) {
+                emitter.onSuccess(true);
+            } else {
+                emitter.onSuccess(false);
+            }
+        }).filter(result -> (boolean) result).subscribe(System.out::println, throwable -> throwable.printStackTrace(), () -> System.out.println("Complete"));
+    }
+
+    @Test
     public void error() {
 
         Single.create(emitter -> emitter.onSuccess(true))

@@ -19,6 +19,7 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.sql.Time;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
@@ -65,44 +66,53 @@ public class FlowableTest {
     }
 
     @Test
+    public void take() {
+//        The take() operator has two overloads. One will take a specified number of emissions and then call
+//        onComplete() after it captures all of them. It will also dispose of the entire subscription so that no more
+//        emissions will occur
+        Flowable source = Flowable.interval(1, TimeUnit.SECONDS);
+        Flowable flowable = source.take(3);
+        flowable.blockingSubscribe(i -> System.out.println("Observer 1:" + i));
+        source.blockingSubscribe(i -> System.out.println("Observer 2:" + i));
+    }
+
+    @Test
     public void fileReadByBufferedReader() {
         String filePath = "/test.txt";
 
-        Flowable.generate(()->new BufferedReader(new InputStreamReader(FlowableTest.class.getResourceAsStream(filePath))),(reader,emitter)->{
-            String line=reader.readLine();
-            if(line!=null){
+        Flowable.generate(() -> new BufferedReader(new InputStreamReader(FlowableTest.class.getResourceAsStream(filePath))), (reader, emitter) -> {
+            String line = reader.readLine();
+            if (line != null) {
                 emitter.onNext(line);
-            }else{
+            } else {
                 emitter.onComplete();
             }
-        },reader->reader.close()).observeOn(Schedulers.io()).subscribe(System.out::println,throwable -> throwable.printStackTrace(),()->System.out.println("read complete"));
+        }, reader -> reader.close()).observeOn(Schedulers.io()).subscribe(System.out::println, throwable -> throwable.printStackTrace(), () -> System.out.println("read complete"));
     }
+
+    private static final int BUFFER_SIZE = 50;
 
     @Test
     public void fileRead() throws URISyntaxException, InterruptedException {
         String filePath = "/test.txt";
-        Path path = Paths.get(FlowableTest.class.getResource(filePath).toURI());
         Flowable.create(emitter -> {
-            System.out.println("create 调用了");
-            AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(path, StandardOpenOption.READ);
-            ByteBuffer dst = ByteBuffer.allocate(16);
+            AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(Paths.get(FlowableTest.class.getResource(filePath).toURI()), StandardOpenOption.READ);
+            ByteBuffer dst = ByteBuffer.allocate(BUFFER_SIZE);
             fileChannel.read(dst, 0, dst, new FileReadHandler(fileChannel, emitter));
-        }, BackpressureStrategy.BUFFER).observeOn(Schedulers.io()).subscribeOn(Schedulers.newThread()).subscribe(System.out::print, throwable -> throwable.printStackTrace(), () -> System.out.println("complete"));
+        }, BackpressureStrategy.BUFFER).subscribe(System.out::println, throwable -> throwable.printStackTrace(), () -> System.out.println("read complete"));
 
-        //不加complete监听就要等到sleep结束才触发？为什么？
-
-        TimeUnit.SECONDS.sleep(100);
+        TimeUnit.SECONDS.sleep(10);
     }
 
     private static class FileReadHandler implements CompletionHandler<Integer, ByteBuffer> {
 
         private AsynchronousFileChannel fileChannel;
         private Emitter emitter;
-        //Java.nio.charset.Charset处理了字符转换问题。它通过构造CharsetEncoder和CharsetDecoder将字符序列转换成字节和逆转换。
+
+        //UTF-8解码
         Charset charset = Charset.forName("UTF-8");
         CharsetDecoder decoder = charset.newDecoder();
-
-        CharBuffer charBuffer = CharBuffer.allocate(16);
+        CharBuffer charBuffer = CharBuffer.allocate(BUFFER_SIZE);
 
         private long position;
 
@@ -128,17 +138,14 @@ public class FlowableTest {
 
             buffer.flip();
 
-            decoder.decode(buffer, charBuffer, false);
+            decoder.decode(buffer, charBuffer, true);
             charBuffer.flip();
 
             char[] data = new char[charBuffer.limit()];
             charBuffer.get(data);
             String readInfo = new String(data);
-            //读取中文的时候为什么这里会为空？
-            if (readInfo.isEmpty()) {
-                System.out.println("读取为空");
-            }
 
+            //发送获取的数据
             emitter.onNext(readInfo);
 
             charBuffer.clear();
@@ -153,7 +160,7 @@ public class FlowableTest {
 
         @Override
         public void failed(Throwable exc, ByteBuffer attachment) {
-
+            exc.printStackTrace();
         }
     }
 

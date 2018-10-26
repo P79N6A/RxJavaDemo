@@ -2,6 +2,7 @@ package com.taobao;
 
 import io.reactivex.Observable;
 import io.reactivex.Observer;
+import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.BiPredicate;
 import io.reactivex.observables.ConnectableObservable;
@@ -11,6 +12,9 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -79,6 +83,129 @@ public class ObservableTest {
 
 
     }
+
+    @Test
+    public void fromFuture() throws InterruptedException {
+//        RxJava Observables are much more robust and expressive than Futures, but if you have existing libraries
+//        that yield Futures, you can easily turn them into Observables
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        Future<String> future = executorService.submit(() -> {
+            System.out.println("processing...");
+            TimeUnit.SECONDS.sleep(3);
+            return "Hello";
+        });
+
+        Observable.fromFuture(future).subscribeOn(Schedulers.io()).subscribe(System.out::print);
+
+        TimeUnit.SECONDS.sleep(4);
+    }
+
+    @Test
+    public void empty() {
+//        Although this may not seem useful yet, it is sometimes helpful to create an Observable that emits nothing and
+//        calls onComplete()
+//        Empty observables are common to represent empty datasets.
+//        They can also result from operators such as filter() when all emissions fail to meet a condition
+//        An empty Observable is essentially RxJava's concept of null. It is the absence of a value (or technically,
+//        "values"). Empty Observables are much more elegant than nulls because operations will simply continue
+//                empty rather than throw NullPointerExceptions.
+        Observable.empty().subscribe(System.out::print, throwable -> throwable.printStackTrace(), () -> System.out.println("Done"));
+    }
+
+    int start = 1;
+    int count = 5;
+
+    @Test
+    public void defer() {
+
+//        Your source Observable may not capture something that has changed
+//        about its parameters and send emissions that are obsolete. Here is a simple example: we have an
+//        Observable.range() built off two static int properties, start and count.
+
+//        If you subscribe to this Observable, modify the count, and then subscribe again, you will find that the second
+//        Observer does not see this change
+
+        Observable<Integer> source = Observable.range(start, count);
+
+        source.subscribe(i -> System.out.println("Observer 1:" + i));
+
+        count = 10;
+        System.out.println("===============change count================");
+        source.subscribe(i -> System.out.println("Observer 2:" + i));
+
+//        To remedy this problem of Observable sources not capturing state changes, you can create a fresh Observable
+//        for each subscription. This can be achieved using Observable.defer(), which accepts a lambda instructing
+//        how to create an Observable for every subscription. Because this creates a new Observable each time, it will
+//        reflect any changes driving its parameters:
+
+
+        System.out.println("===============def================");
+
+        start = 1;
+        count = 5;
+
+        source = Observable.defer(() -> Observable.range(start, count));
+        source.subscribe(i -> System.out.println("Observer 1:" + i));
+
+        count = 10;
+        System.out.println("===============change count================");
+        source.subscribe(i -> System.out.println("Observer 2:" + i));
+    }
+
+    @Test
+    public void fromCallable() {
+//        The error was emitted to the Observer rather than being thrown where it occurred. If
+//        initializing your emission has a likelihood of throwing an error, you should use Observable.fromCallable()
+//        instead of Observable.just().
+        Observable.fromCallable(() -> 1 / 0).subscribe(System.out::print, throwable -> System.out.println("Error Captured: " + throwable.getMessage()));
+    }
+
+    @Test
+    public void dispose() throws InterruptedException {
+
+        Disposable disposable = Observable.create(emitter -> {
+            emitter.setCancellable(() -> {
+                System.out.println("cancel");
+            });
+            int i = 0;
+            while (true) {
+                emitter.onNext(i++);
+
+            }
+        }).subscribeOn(Schedulers.io()).subscribe(System.out::println, throwable -> System.out.println(throwable.getMessage()), () -> System.out.println("complete"));
+
+        TimeUnit.SECONDS.sleep(3);
+
+        disposable.dispose();//异常会被抛出，error捕获不到，会中断create的执行
+        System.out.println("dispose resource");
+
+        TimeUnit.SECONDS.sleep(5);
+
+
+    }
+
+    @Test
+    public void compositeDisposable() throws InterruptedException {
+
+//        If you have several subscriptions that need to be managed and disposed of, it can be helpful to use
+//        CompositeDisposable. It implements Disposable, but it internally holds a collection of disposables, which you can
+//        add to and then dispose all at once
+
+        CompositeDisposable disposables = new CompositeDisposable();
+        Observable<Long> source = Observable.interval(1, TimeUnit.SECONDS);
+        Disposable disposable = source.subscribe(i -> System.out.println("Receive 1:" + i));
+        Disposable disposable1 = source.subscribe(i -> System.out.println("Receive 2:" + i));
+        disposables.addAll(disposable, disposable1);
+
+        TimeUnit.SECONDS.sleep(3);
+
+        disposables.dispose();
+        System.out.println("dispose all resource");
+
+        TimeUnit.SECONDS.sleep(3);
+
+    }
+
 
     @Test
     public void backpressure() {
