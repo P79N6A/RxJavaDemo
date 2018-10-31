@@ -6,6 +6,7 @@ import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.BiPredicate;
 import io.reactivex.observables.ConnectableObservable;
+import io.reactivex.plugins.RxJavaPlugins;
 import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 
@@ -34,6 +35,20 @@ public class ObservableTest {
 
         length(observable);
 
+    }
+
+    @Test
+    public void just() {
+        //全局的调用拦截
+        RxJavaPlugins.setOnObservableAssembly(observable -> {
+            System.out.println("RxJavaPlugins OnObservableAssembly");
+            return observable;
+        });
+        RxJavaPlugins.setOnObservableSubscribe((observable, observer) -> {
+            System.out.println("RxJavaPlugins OnObservableSubscribe");
+            return observer;
+        });
+        Observable.just("Hello World").map(s -> s.length()).subscribe(System.out::println);
     }
 
     @Test
