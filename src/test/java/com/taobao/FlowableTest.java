@@ -20,7 +20,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.sql.Time;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +55,67 @@ public class FlowableTest {
 
     }
 
+    @Test
+    public void just() {
+        Flowable.just(1,2,3).subscribe(new FlowableSubscriber<Integer>() {
+
+            private Subscription subscription;
+
+            @Override
+            public void onSubscribe(Subscription s) {
+                this.subscription = s;
+                s.request(1);
+            }
+
+            @Override
+            public void onNext(Integer integer) {
+                System.out.println("Receive:" + integer);
+                subscription.request(1);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+
+            }
+
+            @Override
+            public void onComplete() {
+                System.out.println("complete");
+            }
+        });
+    }
+
+    @Test
+    public void sorted() {
+
+        Flowable<Integer> flowable = Flowable.just(2, 4, 9, 8, 10);
+//        If you have a finite Observable<T> emitting items that implement Comparable<T>, you can use sorted() to sort the
+//        emissions. Internally, it will collect all the emissions and then re-emit them in their sorted order
+
+//        Of course, this can have some performance implications as it will collect all emissions in memory before
+//        emitting them again. If you use this against an infinite Observable, you may get an OutOfMemory error.
+        flowable.sorted().subscribe(System.out::println);
+
+//        You can also provide Comparator as an argument to specify an explicit sorting criterion. We can provide
+//        Comparator to reverse the sorting order, such as the one shown as follows:
+        flowable.sorted(Comparator.reverseOrder()).subscribe(System.out::println);
+//        Since Comparator is a single-abstract-method interface, you can implement it quickly with a lambda. Specify
+//        the two parameters representing two emissions, and then map them to their comparison operation
+        Flowable.just("Hello", "Alpha", "Beta", "Epsilon").sorted((x, y) -> Integer.compare(x.length(), y.length())).subscribe(System.out::println);
+
+
+    }
+
+    @Test
+    public void delay() throws InterruptedException {
+//        We can postpone emissions using the delay() operator. It will hold any received emissions and delay each
+//        one for the specified time period
+        Flowable.just(1, 2, 3, 4).delay(1, TimeUnit.SECONDS).subscribe(System.out::println);
+//        Because delay() operates on a different scheduler (such as Observable.interval()), we need to leverage a
+//        sleep() method to keep the application alive long enough to see this happen
+        TimeUnit.SECONDS.sleep(3);
+    }
+
 
     @Test
     public void generate() {
@@ -64,6 +128,35 @@ public class FlowableTest {
         });
 
         numbers.observeOn(Schedulers.newThread()).subscribe(System.out::println);
+    }
+
+    @Test
+    public void map() {
+//        For a given Observable<T>, the map() operator will transform a T emission into an R emission using the
+//        provided Function<T,R> lambda
+//        The map() operator does a one-to-one conversion for each emission. If you need to do a one-to-many
+//        conversion (turn one emission into several emissions), you will likely want to use flatMap() or concatMap()
+
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("M/d/yyyy");
+        Flowable.just("1/3/2016", "5/9/2016", "10/12/2016")
+                .map(s -> LocalDate.parse(s, dtf))
+                .subscribe(i -> System.out.println("RECEIVED: " + i));
+
+    }
+
+    @Test
+    public void cast() {
+//        A simple, map-like operator to cast each emission to a different type is cast().
+        Flowable.just(1, 2).cast(Integer.class).subscribe(System.out::println);
+    }
+
+    @Test
+    public void startWith() {
+//        the startWith() operator allows you to insert a T emission that precedes all the
+//        other emissions
+//        If you want to start with more than one emission, use startWithArray() to accept varargs parameters
+        Flowable.just("Coffee", "Tea").startWith("COFFEE SHOP MENU").subscribe(System.out::println);
     }
 
     @Test
@@ -144,7 +237,7 @@ public class FlowableTest {
 //        You can get a specific emission by its index specified by a Long, starting at 0. After that item is found and
 //        emitted, onComplete() will be called and the subscription will be disposed of
 
-        Flowable.just(1, 2, 3, 4).elementAt(2).subscribe(System.out::println,throwable -> throwable.printStackTrace(),()->System.out.println("Complete"));
+        Flowable.just(1, 2, 3, 4).elementAt(2).subscribe(System.out::println, throwable -> throwable.printStackTrace(), () -> System.out.println("Complete"));
     }
 
     @Test

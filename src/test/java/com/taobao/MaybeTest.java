@@ -71,6 +71,9 @@ public class MaybeTest {
      */
     @Test
     public void switchIfEmpty() {
+//        Similar to defaultIfEmpty(), switchIfEmpty() specifies a different Observable to emit values from if the source
+//        Observable is empty. This allows you specify a different sequence of emissions in the event that the source
+//        is empty rather than emitting just one value.
         Maybe.create(emitter -> {
             if (new Random().nextInt() % 2 == 0) {
                 emitter.onSuccess(true);
@@ -78,6 +81,19 @@ public class MaybeTest {
                 emitter.onComplete();
             }
         }).switchIfEmpty(Maybe.just(false)).subscribe(o -> System.out.println(o));
+    }
+
+    @Test
+    public void defaultIfEmpty(){
+//        If we want to resort to a single emission if a given Observable comes out empty, we can use defaultIfEmpty().
+//                For a given Observable<T>, we can specify a default T emission if no emissions occur when on
+        Maybe.create(emitter -> {
+            if (new Random().nextInt() % 2 == 0) {
+                emitter.onSuccess(true);
+            } else {
+                emitter.onComplete();
+            }
+        }).defaultIfEmpty(false).subscribe(System.out::println);
     }
 
     @Test
