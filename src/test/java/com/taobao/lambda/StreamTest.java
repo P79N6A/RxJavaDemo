@@ -53,8 +53,21 @@ public class StreamTest {
     }
 
     @Test
+    public void parallelSetAll() {
+        //并行的初始化数组，并且顺序不会乱
+        int[] values = new int[100];
+        Arrays.parallelSetAll(values, IntUnaryOperator.identity());
+        for (int i = 0; i < 100; i++) {
+            System.out.println(values[i]);
+        }
+
+    }
+
+
+
+    @Test
     public void reduce3() {
-        ArrayList<Integer> accResult_ = Stream.of(1, 2, 3, 4)
+        ArrayList<Integer> accResult_ = Stream.of(1, 2, 3, 4).parallel()
                 .reduce(new ArrayList<Integer>(),
                         new BiFunction<ArrayList<Integer>, Integer, ArrayList<Integer>>() {
                             @Override
