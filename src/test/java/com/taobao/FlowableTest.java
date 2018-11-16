@@ -519,6 +519,36 @@ public class FlowableTest {
     }
 
     @Test
+    public void doOnSubscribe() {
+        //Two other helpful action operators are doOnSubscribe() and doOnDispose(). The doOnSubscribe() fires a specific
+        //Consumer<Disposable> the moment subscription occurs at that point in the Observable chain. It provides access to
+        //the Disposable in case you want to call dispose() in that action
+
+        //The doOnDispose() operator will perform a
+        //specific action when disposal is executed at that point in the Observable chain
+
+        //Note that doOnDispose() can fire multiple times for redundant disposal requests or not at all if it is not
+        //disposed of in some form or another
+
+        Observable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon")
+                .doOnSubscribe(d -> System.out.println("Subscribing!"))
+                .doOnDispose(() -> System.out.println("Disposing!"))
+                .subscribe(i -> System.out.println("RECEIVED: " + i));
+
+    }
+
+    @Test
+    public void doOnSuccess() {
+        //Remember that Maybe and Single types do not have an onNext() event but rather an onSuccess() operator to pass
+        //a single emission. Therefore, there is no doOnNext() operator on either of these types, as observed in the
+        //following code snippet, but rather a doOnSuccess() operator. Its usage should effectively feel like doOnNext()
+        Observable.just(5, 3, 7, 10, 2, 14)
+                .reduce((total, next) -> total + next)
+                .doOnSuccess(i -> System.out.println("Emitting: " + i))
+                .subscribe(i -> System.out.println("Received: " + i));
+    }
+
+    @Test
     public void doOnEach() {
         //You can specify all three actions for onNext(), onComplete(), and onError() using doOnEach() as
         //well. The subscribe() method accepts these three actions as lambda arguments or an entire
