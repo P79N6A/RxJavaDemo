@@ -32,6 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
  * @author huichi  shaokai.ysk@alibaba-inc.com
@@ -226,33 +227,13 @@ public class FlowableTest {
 
     @Test
     public void just() {
-        Flowable.just(1, 2, 3).subscribe(new FlowableSubscriber<Integer>() {
-
-            private Subscription subscription;
-
-            @Override
-            public void onSubscribe(Subscription s) {
-                this.subscription = s;
-                s.request(1);
-            }
-
-            @Override
-            public void onNext(Integer integer) {
-                System.out.println("Receive:" + integer);
-                subscription.request(1);
-            }
-
-            @Override
-            public void onError(Throwable t) {
-
-            }
-
-            @Override
-            public void onComplete() {
-                System.out.println("complete");
-            }
-        });
+        Flowable.just("name","ysk").map(this::mapper).subscribe(System.out::println);
     }
+
+    private Function<String, String> mapper(String st) {
+        return (s) -> "Hello " + s;
+    }
+
 
     @Test
     public void time() throws InterruptedException {
