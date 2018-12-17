@@ -27,10 +27,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -109,18 +106,141 @@ public class FlowableTest {
         Flowable.just("Alpha", "Beta", "Hangzhou", "Beijing").scan(0, (total, next) -> total + next.length()).skip(1).subscribe(System.out::println);
     }
 
+    /********************************************Suppressing operators****************************************/
+
+    @Test
+    public void filter() {
+        //The filter() operator accepts Predicate<T> for a given Observable<T>. This means that you provide it a lambda
+        //that qualifies each emission by mapping it to a Boolean value, and emissions with false will not go
+        //forward.
+        //The filter() function is probably the most commonly used operator to suppress emissions.
+        Flowable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon")
+                .filter(s -> s.length() != 5).subscribe(s -> System.out.println("RECEIVED: " + s));
+    }
+
+    @Test
+    public void take() {
+//        The take() operator has two overloads. One will take a specified number of emissions and then call
+//        onComplete() after it captures all of them. It will also dispose of the entire subscription so that no more
+//        emissions will occur
+        Flowable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon")
+                .take(3)
+                .doOnCancel(() -> System.out.println("Cancel"))
+                .doOnComplete(() -> System.out.println("Complete"))
+                .subscribe(s -> System.out.println("RECEIVED: " + s));
+
+        //Note that if you receive fewer emissions than you specify in your take() function, it will simply emit what
+        //it does get and then call the onComplete() function
+    }
+
+    @Test
+    public void take1() {
+        Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .take(2, TimeUnit.SECONDS)
+                .subscribe(i -> System.out.println("RECEIVED: " + i));
+        sleep(5000);
+    }
+
+    @Test
+    public void takeLast() {
+        //takeLast() operator, which will take the last specified number of emissions (or
+        //time duration) before the onComplete() function is called. Just keep in mind that it will internally queue
+        //emissions until its onComplete() function is called, and then it can logically identify and emit the last
+        //emissions.
+        Flowable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon")
+                .takeLast(3)
+                .doOnComplete(() -> System.out.println("Complete"))
+                .subscribe(s -> System.out.println("RECEIVED: " + s));
+    }
+
+    @Test
+    public void takeWhile() {
+//        Another variant of the take() operator is the takeWhile() operator, which takes emissions while a condition
+//        derived from each emission is true
+        Flowable.range(1, 100).takeWhile(i -> i < 5).subscribe(i -> System.out.println("RECEIVE:" + i));
+    }
+
+    @Test
+    public void skip() {
+//        The skip() operator does the opposite of the take() operator. It will ignore the specified number of
+//        emissions and then emit the ones that follow
+        Flowable<Integer> flowable = Flowable.range(0, 100);
+        flowable.skip(90).subscribe(i -> System.out.println("RECEIVE 1: " + i));
+//        Just like the take() operator, there is also an overload accepting a time duration. There is also a skipLast()
+//        operator, which will skip the last specified number of items (or time duration) before the onComplete() event
+//        is called. Just keep in mind that the skipLast() operator will queue and delay emissions until it confirms the
+//        last emissions in that scope.
+
+        flowable.skipLast(90).subscribe(i -> System.out.println("RECEIVE 2: " + i));
+
+    }
+
+    @Test
+    public void skipWhile() {
+//        there is a skipWhile() function. It will keep skipping emissions while they
+//        qualify with a condition. The moment that condition no longer qualifies, the emissions will start going
+//        through
+        Flowable.range(0, 100).skipWhile(i -> i < 95).subscribe(i -> System.out.println("RECEIVE: " + i));
+    }
+
+    @Test
+    public void distinct() {
+        Flowable<String> flowable = Flowable.just("Hello", "Hello", "World", "World");
+        flowable.distinct().subscribe(i -> System.out.println("RECEIVE 1: " + i));
+
+//        You can also add a lambda argument that maps each emission to a key used for equality logic. This allows
+//        the emissions, but not the key, to go forward while using the key for distinct logic. For instance, we can
+//        key off each string's length and use it for uniqueness, but emit the strings rather than their lengths
+
+        flowable.distinct(i -> i.length()).subscribe(i -> System.out.println("RECEIVE 2: " + i));
+
+
+    }
+
+    @Test
+    public void distinctUntilChanged() {
+
+//        The distinctUntilChanged() function will ignore duplicate consecutive emissions. It is a helpful way to ignore
+//        repetitions until they change. If the same value is being emitted repeatedly, all the duplicates will be
+//        ignored until a new value is emitted. Duplicates of the next value will be ignored until it changes again,
+//        and so on
+
+        Flowable.just(1, 1, 2, 2, 3, 3, 4, 5, 4).distinctUntilChanged().subscribe(i -> System.out.println("RECEIVE :" + i));
+
+        //you can provide an optional argument for a key through a lambda mapping
+        Flowable.just("Alpha", "Beta", "Zeta", "Eta", "Gamma",
+                "Delta")
+                .distinctUntilChanged(String::length)
+                .subscribe(i -> System.out.println("RECEIVED: " + i));
+
+    }
+
+    /********************************************Suppressing operators****************************************/
+
+    /********************************************Reducing operators****************************************/
+
+    @Test
+    public void count() {
+//        The simplest operator to consolidate emissions into a single one is count(). It will count the number of
+//        emissions and emit through a Single once onComplete() is called
+
+//        Like most reduction operators, this should not be used on an infinite Observable. It will hang up and work
+//        infinitely, never emitting a count or calling onComplete(). You should consider using scan() to emit a rolling
+//        count instead.
+        Flowable.just(1, 2, 3, 4).count().subscribe(System.out::print);
+    }
+
     @Test
     public void reduce() {
 
 //        The reduce() operator is syntactically identical to scan(), but it only emits the final accumulation when the
 //        source calls onComplete(). Depending on which overload you use, it can yield Single or Maybe
 
-        Flowable.create((FlowableOnSubscribe<Integer>) emitter -> {
-            for (int i = 1; i <= 100; i++) {
-                emitter.onNext(i);
-            }
-            emitter.onComplete();
-        }, BackpressureStrategy.BUFFER).reduce((total, next) -> total + next).subscribe(System.out::println);
+        Flowable.just(5, 3, 7, 10, 2, 14)
+                .reduce("", (total, next) -> total + (total.equals("") ? "" :
+                        ",") + next)
+                .subscribe(s -> System.out.println("Received: " + s));
+
     }
 
     @Test
@@ -152,16 +272,8 @@ public class FlowableTest {
         Flowable.just(1, 2, 3, 4).contains(1).subscribe(System.out::println);
     }
 
-    @Test
-    public void count() {
-//        The simplest operator to consolidate emissions into a single one is count(). It will count the number of
-//        emissions and emit through a Single once onComplete() is called
+    /********************************************Reducing operators****************************************/
 
-//        Like most reduction operators, this should not be used on an infinite Observable. It will hang up and work
-//        infinitely, never emitting a count or calling onComplete(). You should consider using scan() to emit a rolling
-//        count instead.
-        Flowable.just(1, 2, 3, 4).count().subscribe(System.out::print);
-    }
 
     @Test
     public void toList() {
@@ -382,6 +494,50 @@ public class FlowableTest {
     }
 
     @Test
+    public void concatMap() {
+        Flowable<String> items = Flowable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon",
+                "Zeta", "Eta", "Theta", "Iota");
+//delay each String to emulate an intense calculation
+        Flowable<String> processStrings = items.concatMap(s ->
+                Flowable.just(s)
+                        .delay(randomSleepTime(), TimeUnit.MILLISECONDS)
+        );
+        processStrings.subscribe(System.out::println);
+//keep application alive for 20 seconds
+        sleep(20000);
+    }
+
+    @Test
+    public void switchMap() {
+        //it will emit from the latest Observable derived from the latest emission and
+        //dispose of any previous Observables that were processing. In other words, it allows you to cancel an
+        //emitting Observable and switch to a new one, preventing stale or redundant processing
+        //This can be helpful in many situations to prevent redundant
+        //or stale work and is especially effective in user interfaces where rapid user inputs create stale requests.
+        //You can use it to cancel database queries, web requests, and other expensive tasks and replace it with a
+        //new task.
+        Flowable<String> items = Flowable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon",
+                "Zeta", "Eta", "Theta", "Iota");
+//delay each String to emulate an intense calculation
+        Flowable<String> processStrings = items.concatMap(s ->
+                Flowable.just(s)
+                        .delay(randomSleepTime(), TimeUnit.MILLISECONDS)
+        );
+        Flowable.interval(5, TimeUnit.SECONDS).switchMap(i -> processStrings.doOnCancel(() -> System.out.println("Disposing! Starting next"))).subscribe(System.out::println);
+        sleep(20000);
+        //For switchMap() to work effectively, the thread pushing emissions into switchMap() cannot be occupied doing
+        //the work inside switchMap(). This means that you may have to use observeOn() or subscribeOn() inside switchMap()
+        //to do work on a different thread. If the operations inside switchMap() are expensive to stop (for instance, a
+        //database query using RxJava-JDBC), you might want to use unsubscribeOn() as well to keep the triggering
+        //thread from becoming occupied with disposal.
+    }
+
+    public static int randomSleepTime() {
+//returns random sleep time between 0 to 2000 milliseconds
+        return ThreadLocalRandom.current().nextInt(2000);
+    }
+
+    @Test
     public void cast() {
 //        A simple, map-like operator to cast each emission to a different type is cast().
         Flowable.just(1, 2).cast(Integer.class).subscribe(System.out::println);
@@ -395,78 +551,6 @@ public class FlowableTest {
         Flowable.just("Coffee", "Tea").startWith("COFFEE SHOP MENU").subscribe(System.out::println);
     }
 
-    @Test
-    public void take() {
-//        The take() operator has two overloads. One will take a specified number of emissions and then call
-//        onComplete() after it captures all of them. It will also dispose of the entire subscription so that no more
-//        emissions will occur
-        Flowable source = Flowable.interval(1, TimeUnit.SECONDS);
-        Flowable flowable = source.take(3);
-        flowable.blockingSubscribe(i -> System.out.println("Observer 1:" + i));
-        source.blockingSubscribe(i -> System.out.println("Observer 2:" + i));
-    }
-
-    @Test
-    public void takeWhile() {
-//        Another variant of the take() operator is the takeWhile() operator, which takes emissions while a condition
-//        derived from each emission is true
-        Flowable.range(1, 100).takeWhile(i -> i < 5).subscribe(i -> System.out.println("RECEIVE:" + i));
-    }
-
-    @Test
-    public void skip() {
-//        The skip() operator does the opposite of the take() operator. It will ignore the specified number of
-//        emissions and then emit the ones that follow
-        Flowable<Integer> flowable = Flowable.range(0, 100);
-        flowable.skip(90).subscribe(i -> System.out.println("RECEIVE 1: " + i));
-//        Just like the take() operator, there is also an overload accepting a time duration. There is also a skipLast()
-//        operator, which will skip the last specified number of items (or time duration) before the onComplete() event
-//        is called. Just keep in mind that the skipLast() operator will queue and delay emissions until it confirms the
-//        last emissions in that scope.
-
-        flowable.skipLast(90).subscribe(i -> System.out.println("RECEIVE 2: " + i));
-
-    }
-
-    @Test
-    public void skipWhile() {
-//        there is a skipWhile() function. It will keep skipping emissions while they
-//        qualify with a condition. The moment that condition no longer qualifies, the emissions will start going
-//        through
-        Flowable.range(0, 100).skipWhile(i -> i < 95).subscribe(i -> System.out.println("RECEIVE: " + i));
-    }
-
-    @Test
-    public void distinct() {
-        Flowable<String> flowable = Flowable.just("Hello", "Hello", "World", "World");
-        flowable.distinct().subscribe(i -> System.out.println("RECEIVE 1: " + i));
-
-//        You can also add a lambda argument that maps each emission to a key used for equality logic. This allows
-//        the emissions, but not the key, to go forward while using the key for distinct logic. For instance, we can
-//        key off each string's length and use it for uniqueness, but emit the strings rather than their lengths
-
-        flowable.distinct(i -> i.length()).subscribe(i -> System.out.println("RECEIVE 2: " + i));
-
-
-    }
-
-    @Test
-    public void distinctUntilChanged() {
-
-//        The distinctUntilChanged() function will ignore duplicate consecutive emissions. It is a helpful way to ignore
-//        repetitions until they change. If the same value is being emitted repeatedly, all the duplicates will be
-//        ignored until a new value is emitted. Duplicates of the next value will be ignored until it changes again,
-//        and so on
-
-        Flowable.just(1, 1, 2, 2, 3, 3, 4, 5, 4).distinctUntilChanged().subscribe(i -> System.out.println("RECEIVE :" + i));
-
-        //you can provide an optional argument for a key through a lambda mapping
-        Flowable.just("Alpha", "Beta", "Zeta", "Eta", "Gamma",
-                "Delta")
-                .distinctUntilChanged(String::length)
-                .subscribe(i -> System.out.println("RECEIVED: " + i));
-
-    }
 
     @Test
     public void doOnNext() {
@@ -746,7 +830,7 @@ public class FlowableTest {
     }
 
     @Test
-    public void throttleWithTimeout(){
+    public void throttleWithTimeout() {
         Flowable<String> source1 = Flowable.interval(100, TimeUnit.MILLISECONDS)
                 .map(i -> (i + 1) * 100) // map to elapsed time
                 .map(i -> "SOURCE 1: " + i)
@@ -814,8 +898,6 @@ public class FlowableTest {
 
         sleep(6000);
     }
-
-
 
 
     /*************************************Combining*****************************************************/
