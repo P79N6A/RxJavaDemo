@@ -3,19 +3,29 @@ package com.taobao.scheduler;
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
 import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 
 import java.net.URL;
+import java.time.LocalTime;
 import java.util.Scanner;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
+ *
+ * The subscribeOn()
+ * operator is used to suggest to the upstream in an Observable chain which Scheduler to push emissions on. The
+ * observeOn()will switch emissions to a different Scheduler at that point in the Observable chain and use that
+ * Scheduler downstream. You can use these two operators in conjunction with flatMap() to create powerful
+ * parallelization patterns so you can fully utilize your multi-CPU power
  * @author huichi  shaokai.ysk@alibaba-inc.com
  * @Description:
  * @date 2018/9/17 下午8:25
  */
-public class SchedulerTest {
+public class SubscribeOnTest {
 
     @Test
     public void test() {
@@ -121,6 +131,84 @@ public class SchedulerTest {
                 .subscribe(i -> System.out.println("Received " + i +
                         " on thread " + Thread.currentThread().getName()));
         sleep(5000);
+    }
+
+    @Test
+    public void test6() {
+        Observable.range(1, 10)
+                .map(i -> intenseCalculation(i))
+                .subscribe(i -> System.out.println("Received " + i + " " + LocalTime.now()));
+
+    }
+
+    @Test
+    public void test7() {
+        //The example here is not necessarily optimal, however. Creating an Observable for each emission might
+        //create some unwanted overhead. There is a leaner way to achieve parallelization, although it has a few
+        //more moving parts. If we want to avoid creating excessive Observable instances, maybe we should split the
+        //source Observable into a fixed number of Observables where emissions are evenly divided and distributed
+        //through each one. Then, we can parallelize and merge them with flatMap().
+        Observable.range(1, 10)
+                .flatMap(i -> Observable.just(i)
+                        .subscribeOn(Schedulers.computation())
+                        .map(i2 -> intenseCalculation(i2))
+                )
+                .subscribe(i -> System.out.println("Received " + i + " "
+                        + LocalTime.now() + " on thread "
+                        + Thread.currentThread().getName()));
+        sleep(20000);
+    }
+
+    @Test
+    public void test8() {
+        //We can achieve this using a groupBy() trick. If I have eight cores, I want to key each emission to a number in
+        //the range 0 through 7. This will yield me eight GroupedObservables that cleanly divide the emissions into eight
+        //streams. More specifically, I want to cycle through these eight numbers and assign them as a key to each
+        //emission. GroupedObservables are not necessarily impacted by subscribeOn() (it will emit on the source's thread
+        //with the exception of the cached emissions), so I will need to use observeOn() to parallelize them instead. I
+        //can also use an io() or newThread() scheduler since I have already constrained the number of workers to the
+        //number of cores, simply by constraining the number of GroupedObservables
+        //核心数
+        int coreCount = Runtime.getRuntime().availableProcessors();
+        System.out.println("core count:" + coreCount);
+        AtomicInteger assigner = new AtomicInteger(0);
+        Observable.range(1, 10)
+                .groupBy(i -> assigner.incrementAndGet() % coreCount)
+                .flatMap(grp -> grp.observeOn(Schedulers.io())
+                        .map(i2 -> intenseCalculation(i2))
+                )
+                .subscribe(i -> System.out.println("Received " + i + " "
+                        + LocalTime.now() + " on thread "
+                        + Thread.currentThread().getName()));
+        sleep(20000);
+    }
+
+    @Test
+    public void test9() {
+        Disposable d = Observable.interval(1, TimeUnit.SECONDS)
+                .doOnDispose(() -> System.out.println("Disposing on thread "
+                        + Thread.currentThread().getName()))
+                .subscribe(i -> System.out.println("Received " + i));
+        sleep(3000);
+        d.dispose();
+        sleep(3000);
+    }
+
+    @Test
+    public void unsubscribeOn() {
+        //When you dispose an Observable,
+        //sometimes, that can be an expensive operation depending on the nature of the source. For instance, if your
+        //Observable is emitting the results of a database query using RxJava-JDBC, (https://github.com/davidmoten/rxjava-jdbc)
+        //it can be expensive to stop and dispose that Observable because it needs to shut down the JDBC resources it
+        //is using.
+        Disposable d = Observable.interval(1, TimeUnit.SECONDS)
+                .doOnDispose(() -> System.out.println("Disposing on thread "
+                        + Thread.currentThread().getName()))
+                .unsubscribeOn(Schedulers.io())
+                .subscribe(i -> System.out.println("Received " + i));
+        sleep(3000);
+        d.dispose();
+        sleep(3000);
     }
 
 

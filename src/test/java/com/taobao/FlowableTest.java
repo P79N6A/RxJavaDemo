@@ -227,7 +227,7 @@ public class FlowableTest {
 
     @Test
     public void just() {
-        Flowable.just("name","ysk").map(this::mapper).subscribe(System.out::println);
+        Flowable.just("name", "ysk").map(this::mapper).subscribe(System.out::println);
     }
 
     private Function<String, String> mapper(String st) {
@@ -564,6 +564,319 @@ public class FlowableTest {
 //        emitted, onComplete() will be called and the subscription will be disposed of
 
         Flowable.just(1, 2, 3, 4).elementAt(2).subscribe(System.out::println, throwable -> throwable.printStackTrace(), () -> System.out.println("Complete"));
+    }
+
+    /*************************************Buffering*****************************************************/
+
+    @Test
+    public void buffer() {
+        //buffer() accepts a count argument that batches emissions in that fixed size. If we
+        //wanted to batch up emissions into lists of eight elements, we can do that as follows
+
+        //Of course, if the number of emissions does not cleanly divide, the remaining elements will be emitted in a
+        //final list even if it is less than the specified count
+        Flowable.range(1, 50).buffer(8).subscribe(System.out::println);
+    }
+
+    @Test
+    public void buffer2() {
+        //You can also supply a second bufferSupplier lambda argument to put items in another collection besides a
+        //list, such as HashSet,
+        Flowable.range(1, 50)
+                .buffer(8, HashSet::new)
+                .subscribe(System.out::println);
+    }
+
+    @Test
+    public void buffer3() {
+        //you can also provide a skip argument that specifies how many items
+        //should be skipped before starting a new buffer. But if they
+        //are different, you can get some interesting behaviors
+        Flowable.range(1, 10).buffer(2, 3).subscribe(System.out::println);
+
+        //If skip is equal to count, the skip has no effect
+        Flowable.range(1, 10).buffer(2, 2).subscribe(System.out::println);
+
+        //If you make skip less than count, you can get some interesting rolling buffers
+
+        Flowable.range(1, 10).buffer(3, 1).subscribe(System.out::println);
+    }
+
+    @Test
+    public void buffer4() {
+        //You can use buffer() at fixed time intervals by providing a long and TimeUnit
+        Flowable.interval(300, TimeUnit.MILLISECONDS).map(i -> (i + 1) * 300).buffer(1, TimeUnit.SECONDS).subscribe(System.out::println);
+        sleep(8000);
+    }
+
+    @Test
+    public void buffer5() {
+        //There is an option to also specify a timeskip argument, which is the timer-based counterpart to skip. It
+        //controls the timing of when each buffer starts
+        Flowable.interval(300, TimeUnit.MILLISECONDS).map(i -> (i + 1) * 300).buffer(2, 1, TimeUnit.SECONDS).subscribe(System.out::println);
+        sleep(4000);
+    }
+
+    @Test
+    public void buffer6() {
+        //You can also leverage a third count argument to provide a maximum buffer size. This will result in a buffer
+        //emission at each time interval or when count is reached, whichever happens first. If the count is reached
+        //right before the time window closes, it will result in an empty buffer being emitted.
+        Flowable.interval(300, TimeUnit.MILLISECONDS).map(i -> (i + 1) * 300).buffer(1, TimeUnit.SECONDS, 2).subscribe(System.out::println);
+        sleep(4000);
+    }
+
+    @Test
+    public void buffer7() {
+        //The most powerful variance of buffer() is accepting another Observable as a boundary argument. It does not
+        //matter what type this other Observable emits. All that matters is every time it emits something, it will use the
+        //timing of that emission as the buffer cut-off. In other words, the arbitrary occurrence of emissions of
+        //another Observable will determine when to "slice" each buffer
+        Flowable<Long> cutOffs =
+                Flowable.interval(1, TimeUnit.SECONDS);
+        Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 300) // map to elapsed time
+                .buffer(cutOffs)
+                .subscribe(System.out::println);
+        sleep(5000);
+    }
+
+
+    /*************************************windowing*****************************************************/
+
+    @Test
+    public void window() {
+        //The window() operators are almost identical to buffer(), except that they buffer into other Observables rather
+        //than collections. This results in an Observable<Observable<T>> that emits Observables. Each Observable emission
+        //will cache emissions for each scope and then flush them once subscribed
+        Flowable.range(1, 50).window(8)
+                .flatMapSingle(flowable -> flowable.reduce("", (total, next) -> total + (total.equals("") ? "" : "|") + next))
+                .subscribe(System.out::println);
+    }
+
+    @Test
+    public void window1() {
+        //Just like buffer(), you can also provide a skip argument. This is how many emissions need to be skipped
+        //before starting a new window
+        Flowable.range(1, 50).window(2, 3)
+                .flatMapSingle(flowable -> flowable.reduce("", (total, next) -> total + (total.equals("") ? "" : "|") + next))
+                .subscribe(System.out::println);
+    }
+
+    @Test
+    public void window2() {
+        //you can cut-off windowed Observables at time intervals just like buffer().
+        //Here, we have an Observable emitting every 300 milliseconds like earlier, and we are slicing it into
+        //separate Observables every 1 second
+        Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 300) // map to elapsed time
+                .window(1, TimeUnit.SECONDS)
+                .flatMapSingle(obs -> obs.reduce("", (total, next) -> total
+                        + (total.equals("") ? "" : "|") + next))
+                .subscribe(System.out::println);
+        sleep(5000);
+    }
+
+
+    /*************************************Throttling*****************************************************/
+
+    //The buffer() and window() operators batch up emissions into collections or Observables based on a defined
+    //scope, which regularly consolidates rather than omits emissions.The throttle() operator, however, omits
+    //emissions when they occur rapidly. This is helpful when rapid emissions are assumed to be redundant or
+    //unwanted, such as a user clicking on a button repeatedly. For these situations, you can use the
+    //throttleLast(), throttleFirst(), and throttleWithTimeout() operators to only let the first or last element in a rapid
+    //sequence of emissions through. How you choose one of the many rapid emissions is determined by your
+    //choice of operator, parameters, and arguments
+    @Test
+    public void throttleLast() {
+        Flowable<String> source1 = Flowable.interval(100, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 100) // map to elapsed time
+                .map(i -> "SOURCE 1: " + i)
+                .take(10);
+
+        source1.throttleLast(100, TimeUnit.MILLISECONDS).subscribe(System.out::println);
+
+        sleep(60000);
+    }
+
+    @Test
+    public void throttleLast1() {
+        Flowable<String> source1 = Flowable.interval(100, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 100) // map to elapsed time
+                .map(i -> "SOURCE 1: " + i)
+                .take(10);
+        Flowable<String> source2 = Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 300) // map to elapsed time
+                .map(i -> "SOURCE 2: " + i)
+                .take(3);
+        Flowable<String> source3 = Flowable.interval(2000, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 2000) // map to elapsed time
+                .map(i -> "SOURCE 3: " + i)
+                .take(2);
+
+        Flowable.concat(source1, source2, source3)
+                .throttleLast(1, TimeUnit.SECONDS)
+                .subscribe(System.out::println);
+
+        sleep(6000);
+    }
+
+    @Test
+    public void throttleFirst() {
+        //but it will emit the first item that occurs at
+        //every fixed time interval
+        Flowable<String> source1 = Flowable.interval(100, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 100) // map to elapsed time
+                .map(i -> "SOURCE 1: " + i)
+                .take(10);
+        Flowable<String> source2 = Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 300) // map to elapsed time
+                .map(i -> "SOURCE 2: " + i)
+                .take(3);
+        Flowable<String> source3 = Flowable.interval(2000, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 2000) // map to elapsed time
+                .map(i -> "SOURCE 3: " + i)
+                .take(2);
+
+        Flowable.concat(source1, source2, source3)
+                .throttleFirst(1, TimeUnit.SECONDS)
+                .subscribe(System.out::println);
+
+        sleep(60000);
+    }
+
+    @Test
+    public void throttleWithTimeout(){
+        Flowable<String> source1 = Flowable.interval(100, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 100) // map to elapsed time
+                .map(i -> "SOURCE 1: " + i)
+                .take(10);
+        Flowable<String> source2 = Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 300) // map to elapsed time
+                .map(i -> "SOURCE 2: " + i)
+                .take(3);
+        Flowable<String> source3 = Flowable.interval(2000, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 2000) // map to elapsed time
+                .map(i -> "SOURCE 3: " + i)
+                .take(2);
+
+        Flowable.concat(source1, source2, source3)
+                .throttleWithTimeout(1, TimeUnit.SECONDS)
+                .subscribe(System.out::println);
+
+        sleep(60000);
+    }
+
+    @Test
+    public void throttleLast2() {
+        //If you want to throttle more liberally at larger time intervals, you will get fewer emissions as this
+        //effectively reduces the sample frequency
+        Flowable<String> source1 = Flowable.interval(100, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 100) // map to elapsed time
+                .map(i -> "SOURCE 1: " + i)
+                .take(10);
+        Flowable<String> source2 = Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 300) // map to elapsed time
+                .map(i -> "SOURCE 2: " + i)
+                .take(3);
+        Flowable<String> source3 = Flowable.interval(2000, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 2000) // map to elapsed time
+                .map(i -> "SOURCE 3: " + i)
+                .take(2);
+
+        Flowable.concat(source1, source2, source3)
+                .throttleLast(2, TimeUnit.SECONDS)
+                .subscribe(System.out::println);
+
+        sleep(6000);
+    }
+
+    @Test
+    public void throttleLast3() {
+        //If you want to throttle more aggressively at shorter time intervals, you will get more emissions, as this
+        //increases the sample frequency
+        Flowable<String> source1 = Flowable.interval(100, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 100) // map to elapsed time
+                .map(i -> "SOURCE 1: " + i)
+                .take(10);
+        Flowable<String> source2 = Flowable.interval(300, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 300) // map to elapsed time
+                .map(i -> "SOURCE 2: " + i)
+                .take(3);
+        Flowable<String> source3 = Flowable.interval(2000, TimeUnit.MILLISECONDS)
+                .map(i -> (i + 1) * 2000) // map to elapsed time
+                .map(i -> "SOURCE 3: " + i)
+                .take(2);
+
+        Flowable.concat(source1, source2, source3)
+                .throttleLast(500, TimeUnit.MILLISECONDS)
+                .subscribe(System.out::println);
+
+        sleep(6000);
+    }
+
+
+
+
+    /*************************************Combining*****************************************************/
+
+    /*************************************Merging*****************************************************/
+
+
+    /*************************************Concatenation*****************************************************/
+
+    @Test
+    public void concat() {
+        //The Observable.concat() factory is the concatenation equivalent to Observable.merge(). It will combine the
+        //emissions of multiple Observables, but will fire each one sequentially and only move to the next after
+        //onComplete() is called
+        //This is the same output as our Observable.merge() example earlier. But as discussed in the merging section,
+        //we should use Observable.concat() to guarantee emission ordering, as merging does not guarantee it
+        Flowable<String> source1 =
+                Flowable.just("Alpha", "Beta", "Gamma", "Delta",
+                        "Epsilon");
+        Flowable<String> source2 =
+                Flowable.just("Zeta", "Eta", "Theta");
+        Flowable.concat(source1, source2)
+                .subscribe(i -> System.out.println("RECEIVED: " + i));
+    }
+
+    @Test
+    public void concatWith() {
+        Flowable<String> source1 =
+                Flowable.just("Alpha", "Beta", "Gamma", "Delta",
+                        "Epsilon");
+        Flowable<String> source2 =
+                Flowable.just("Zeta", "Eta", "Theta");
+        source1.concatWith(source2).subscribe(i -> System.out.println("RECEIVED: " + i));
+    }
+
+    @Test
+    public void concat2() {
+        //emit every second, but only take 2 emissions
+        Flowable<String> source1 =
+                Flowable.interval(1, TimeUnit.SECONDS)
+                        .take(2)
+                        .map(l -> l + 1) // emit elapsed seconds
+                        .map(l -> "Source1: " + l + " seconds");
+//emit every 300 milliseconds
+        Flowable<String> source2 =
+                Flowable.interval(300, TimeUnit.MILLISECONDS)
+                        .map(l -> (l + 1) * 300) // emit elapsed milliseconds
+                        .map(l -> "Source2: " + l + " milliseconds");
+        Flowable.concat(source1, source2)
+                .subscribe(i -> System.out.println("RECEIVED: " + i));
+//keep application alive for 5 seconds
+        sleep(5000);
+    }
+
+
+    public static void sleep(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     @Test

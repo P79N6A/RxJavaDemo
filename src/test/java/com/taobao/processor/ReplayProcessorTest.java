@@ -1,8 +1,12 @@
 package com.taobao.processor;
 
+import io.reactivex.Flowable;
 import io.reactivex.processors.ReplayProcessor;
 import org.junit.Test;
 
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
@@ -14,22 +18,23 @@ import java.util.stream.IntStream;
 public class ReplayProcessorTest {
 
     @Test
-    public void create() {
-
-        ReplayProcessor<Integer> replayProcessor = ReplayProcessor.create(1);
+    public void create() throws InterruptedException {
 
 
-        IntStream.rangeClosed(1,5).forEach(e->{
-            replayProcessor.onNext(e);
-            try {
-                TimeUnit.SECONDS.sleep(1);
-            } catch (InterruptedException e1) {
-                e1.printStackTrace();
-            }
+        ReplayProcessor<Long> replayProcessor = ReplayProcessor.createWithSize(1);
+
+        Flowable.interval(100, TimeUnit.MILLISECONDS).doOnComplete(() -> replayProcessor.onComplete()).doOnNext(i -> {
+            replayProcessor.onNext(i);
+            replayProcessor.onNext(i + 100);
+        }).subscribe();
+
+        replayProcessor.map(i -> i + 1).subscribe(i -> {
+            TimeUnit.SECONDS.sleep(1);
+            System.out.println(i);
         });
 
-        replayProcessor.map(i->i+1).subscribe(System.out::println);
+        TimeUnit.SECONDS.sleep(5);
 
-        replayProcessor.onComplete();
+
     }
 }
