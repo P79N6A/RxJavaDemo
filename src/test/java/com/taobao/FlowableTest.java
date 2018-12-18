@@ -161,6 +161,14 @@ public class FlowableTest {
     }
 
     @Test
+    public void skipWhile() {
+//        there is a skipWhile() function. It will keep skipping emissions while they
+//        qualify with a condition. The moment that condition no longer qualifies, the emissions will start going
+//        through
+        Flowable.range(0, 100).skipWhile(i -> i < 95).subscribe(i -> System.out.println("RECEIVE: " + i));
+    }
+
+    @Test
     public void skip() {
 //        The skip() operator does the opposite of the take() operator. It will ignore the specified number of
 //        emissions and then emit the ones that follow
@@ -176,15 +184,10 @@ public class FlowableTest {
     }
 
     @Test
-    public void skipWhile() {
-//        there is a skipWhile() function. It will keep skipping emissions while they
-//        qualify with a condition. The moment that condition no longer qualifies, the emissions will start going
-//        through
-        Flowable.range(0, 100).skipWhile(i -> i < 95).subscribe(i -> System.out.println("RECEIVE: " + i));
-    }
-
-    @Test
     public void distinct() {
+        //The distinct() operator will emit each unique emission, but it will suppress any duplicates that follow.
+        //Equality is based on hashCode()/equals() implementation of the emitted objects
+
         Flowable<String> flowable = Flowable.just("Hello", "Hello", "World", "World");
         flowable.distinct().subscribe(i -> System.out.println("RECEIVE 1: " + i));
 
@@ -192,7 +195,7 @@ public class FlowableTest {
 //        the emissions, but not the key, to go forward while using the key for distinct logic. For instance, we can
 //        key off each string's length and use it for uniqueness, but emit the strings rather than their lengths
 
-        flowable.distinct(i -> i.length()).subscribe(i -> System.out.println("RECEIVE 2: " + i));
+        flowable.distinct(String::length).subscribe(i -> System.out.println("RECEIVE 2: " + i));
 
 
     }
@@ -207,15 +210,124 @@ public class FlowableTest {
 
         Flowable.just(1, 1, 2, 2, 3, 3, 4, 5, 4).distinctUntilChanged().subscribe(i -> System.out.println("RECEIVE :" + i));
 
+
+    }
+
+    @Test
+    public void distinctUntilChanged1() {
         //you can provide an optional argument for a key through a lambda mapping
         Flowable.just("Alpha", "Beta", "Zeta", "Eta", "Gamma",
                 "Delta")
                 .distinctUntilChanged(String::length)
                 .subscribe(i -> System.out.println("RECEIVED: " + i));
+    }
+
+    @Test
+    public void elementAt() {
+//        You can get a specific emission by its index specified by a Long, starting at 0. After that item is found and
+//        emitted, onComplete() will be called and the subscription will be disposed of
+
+        Flowable.just(1, 2, 3, 4).elementAt(2).subscribe(System.out::println, throwable -> throwable.printStackTrace(), () -> System.out.println("Complete"));
+    }
+
+    /********************************************Transforming operators****************************************/
+
+    @Test
+    public void map() {
+//        For a given Observable<T>, the map() operator will transform a T emission into an R emission using the
+//        provided Function<T,R> lambda
+//        The map() operator does a one-to-one conversion for each emission. If you need to do a one-to-many
+//        conversion (turn one emission into several emissions), you will likely want to use flatMap() or concatMap()
+
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("M/d/yyyy");
+        Flowable.just("1/3/2016", "5/9/2016", "10/12/2016")
+                .map(s -> LocalDate.parse(s, dtf))
+                .subscribe(i -> System.out.println("RECEIVED: " + i));
 
     }
 
-    /********************************************Suppressing operators****************************************/
+    @Test
+    public void cast() {
+//        A simple, map-like operator to cast each emission to a different type is cast().
+        Flowable.just(1, 2).cast(Integer.class).subscribe(System.out::println);
+    }
+
+    @Test
+    public void startWith() {
+//        the startWith() operator allows you to insert a T emission that precedes all the
+//        other emissions
+        Flowable.just("Coffee", "Tea").startWith("COFFEE SHOP MENU").subscribe(System.out::println);
+    }
+
+    @Test
+    public void startWithArray() {
+        //If you want to start with more than one emission, use startWithArray() to accept varargs parameters
+        //The startWith() operator is helpful for cases like this, where we want to seed an initial value or precede
+        //our emissions with one or more emissions.
+        Flowable<String> menu =
+                Flowable.just("Coffee", "Tea", "Espresso", "Latte");
+//print menu
+        menu.startWithArray("COFFEE SHOP MENU", "----------------")
+                .subscribe(System.out::println);
+    }
+
+    @Test
+    public void defaultIfEmpty() {
+
+        //If we want to resort to a single emission if a given Observable comes out empty, we can use defaultIfEmpty()
+        Flowable<String> items =
+                Flowable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon");
+        items.filter(s -> s.startsWith("Z"))
+                .defaultIfEmpty("None")
+                .doOnComplete(() -> System.out.println("Complete"))
+                .subscribe(System.out::println);
+
+    }
+
+    @Test
+    public void switchIfEmpty() {
+        //Similar to defaultIfEmpty(), switchIfEmpty() specifies a different Observable to emit values from if the source
+        //Observable is empty. This allows you specify a different sequence of emissions in the event that the source
+        //is empty rather than emitting just one valu
+        Flowable.just("Alpha", "Beta", "Gamma", "Delta", "Epsilon")
+                .filter(s -> s.startsWith("Z"))
+                .switchIfEmpty(Flowable.just("Zeta", "Eta", "Theta"))
+                .subscribe(i -> System.out.println("RECEIVED: " + i),
+                        e -> System.out.println("RECEIVED ERROR: " + e)
+                );
+    }
+
+    @Test
+    public void sorted() {
+
+         Flowable<Integer> flowable = Flowable.just(2, 4, 9, 8, 10);
+//        If you have a finite Observable<T> emitting items that implement Comparable<T>, you can use sorted() to sort the
+//        emissions. Internally, it will collect all the emissions and then re-emit them in their sorted order
+
+//        Of course, this can have some performance implications as it will collect all emissions in memory before
+//        emitting them again. If you use this against an infinite Observable, you may get an OutOfMemory error.
+        flowable.sorted().subscribe(System.out::println);
+
+//        You can also provide Comparator as an argument to specify an explicit sorting criterion. We can provide
+//        Comparator to reverse the sorting order, such as the one shown as follows:
+        flowable.sorted(Comparator.reverseOrder()).subscribe(System.out::println);
+//        Since Comparator is a single-abstract-method interface, you can implement it quickly with a lambda. Specify
+//        the two parameters representing two emissions, and then map them to their comparison operation
+        Flowable.just("Hello", "Alpha", "Beta", "Epsilon").sorted(Comparator.comparing(String::length)).subscribe(System.out::println);
+
+
+    }
+
+    @Test
+    public void delay() throws InterruptedException {
+//        We can postpone emissions using the delay() operator. It will hold any received emissions and delay each
+//        one for the specified time period
+        Flowable.just(1, 2, 3, 4).delay(1, TimeUnit.SECONDS).subscribe(System.out::println);
+//        Because delay() operates on a different scheduler (such as Observable.interval()), we need to leverage a
+//        sleep() method to keep the application alive long enough to see this happen
+        TimeUnit.SECONDS.sleep(3);
+    }
 
     /********************************************Reducing operators****************************************/
 
@@ -433,36 +545,9 @@ public class FlowableTest {
         TimeUnit.SECONDS.sleep(4);
     }
 
-    @Test
-    public void sorted() {
-
-        Flowable<Integer> flowable = Flowable.just(2, 4, 9, 8, 10);
-//        If you have a finite Observable<T> emitting items that implement Comparable<T>, you can use sorted() to sort the
-//        emissions. Internally, it will collect all the emissions and then re-emit them in their sorted order
-
-//        Of course, this can have some performance implications as it will collect all emissions in memory before
-//        emitting them again. If you use this against an infinite Observable, you may get an OutOfMemory error.
-        flowable.sorted().subscribe(System.out::println);
-
-//        You can also provide Comparator as an argument to specify an explicit sorting criterion. We can provide
-//        Comparator to reverse the sorting order, such as the one shown as follows:
-        flowable.sorted(Comparator.reverseOrder()).subscribe(System.out::println);
-//        Since Comparator is a single-abstract-method interface, you can implement it quickly with a lambda. Specify
-//        the two parameters representing two emissions, and then map them to their comparison operation
-        Flowable.just("Hello", "Alpha", "Beta", "Epsilon").sorted((x, y) -> Integer.compare(x.length(), y.length())).subscribe(System.out::println);
 
 
-    }
 
-    @Test
-    public void delay() throws InterruptedException {
-//        We can postpone emissions using the delay() operator. It will hold any received emissions and delay each
-//        one for the specified time period
-        Flowable.just(1, 2, 3, 4).delay(1, TimeUnit.SECONDS).subscribe(System.out::println);
-//        Because delay() operates on a different scheduler (such as Observable.interval()), we need to leverage a
-//        sleep() method to keep the application alive long enough to see this happen
-        TimeUnit.SECONDS.sleep(3);
-    }
 
 
     @Test
@@ -478,20 +563,6 @@ public class FlowableTest {
         numbers.observeOn(Schedulers.newThread()).subscribe(System.out::println);
     }
 
-    @Test
-    public void map() {
-//        For a given Observable<T>, the map() operator will transform a T emission into an R emission using the
-//        provided Function<T,R> lambda
-//        The map() operator does a one-to-one conversion for each emission. If you need to do a one-to-many
-//        conversion (turn one emission into several emissions), you will likely want to use flatMap() or concatMap()
-
-
-        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("M/d/yyyy");
-        Flowable.just("1/3/2016", "5/9/2016", "10/12/2016")
-                .map(s -> LocalDate.parse(s, dtf))
-                .subscribe(i -> System.out.println("RECEIVED: " + i));
-
-    }
 
     @Test
     public void concatMap() {
@@ -535,20 +606,6 @@ public class FlowableTest {
     public static int randomSleepTime() {
 //returns random sleep time between 0 to 2000 milliseconds
         return ThreadLocalRandom.current().nextInt(2000);
-    }
-
-    @Test
-    public void cast() {
-//        A simple, map-like operator to cast each emission to a different type is cast().
-        Flowable.just(1, 2).cast(Integer.class).subscribe(System.out::println);
-    }
-
-    @Test
-    public void startWith() {
-//        the startWith() operator allows you to insert a T emission that precedes all the
-//        other emissions
-//        If you want to start with more than one emission, use startWithArray() to accept varargs parameters
-        Flowable.just("Coffee", "Tea").startWith("COFFEE SHOP MENU").subscribe(System.out::println);
     }
 
 
@@ -641,14 +698,6 @@ public class FlowableTest {
         }).subscribe(System.out::println);
     }
 
-
-    @Test
-    public void elementAt() {
-//        You can get a specific emission by its index specified by a Long, starting at 0. After that item is found and
-//        emitted, onComplete() will be called and the subscription will be disposed of
-
-        Flowable.just(1, 2, 3, 4).elementAt(2).subscribe(System.out::println, throwable -> throwable.printStackTrace(), () -> System.out.println("Complete"));
-    }
 
     /*************************************Buffering*****************************************************/
 
