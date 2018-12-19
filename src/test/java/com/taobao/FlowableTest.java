@@ -2,6 +2,7 @@ package com.taobao;
 
 import io.reactivex.*;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
 import org.reactivestreams.Subscriber;
@@ -38,25 +39,6 @@ import java.util.function.Function;
  */
 public class FlowableTest {
 
-    @Test
-    public void test() throws InterruptedException {
-        Flowable<Integer> f1 = Flowable.just(1, 2, 3, 4).delay(40, TimeUnit.MILLISECONDS, Schedulers.io());
-        Flowable<Integer> f2 = Flowable.just(9, 5, 6, 7).delay(60, TimeUnit.MILLISECONDS, Schedulers.io());
-
-        List<Flowable<Integer>> flowableList = new ArrayList<>();
-        flowableList.add(f1);
-        flowableList.add(f2);
-
-        Flowable<Flowable<Integer>> f3 = Flowable.fromIterable(flowableList);
-        Flowable<Integer> f4 = f3.flatMap(flowable -> flowable);
-        Flowable<List<Integer>> f5 = f4.toList().toFlowable();
-        f5.blockingSubscribe(results -> {
-            results.forEach(result -> {
-                System.out.println(Thread.currentThread().getName() + "\t" + result);
-            });
-        });
-
-    }
 
     @Test
     public void repeat() {
@@ -105,6 +87,63 @@ public class FlowableTest {
 //        skip(1) after scan() if you do not want that initial emission
         Flowable.just("Alpha", "Beta", "Hangzhou", "Beijing").scan(0, (total, next) -> total + next.length()).skip(1).subscribe(System.out::println);
     }
+
+    /********************************************Suppressing sources****************************************/
+
+    @Test
+    public void create() {
+        Flowable.create((FlowableOnSubscribe<String>) emitter -> {
+            emitter.onNext("Hello");
+            emitter.onNext("World");
+            emitter.onComplete();
+        }, BackpressureStrategy.BUFFER).subscribe(System.out::println);
+    }
+
+    @Test
+    public void just() {
+        Flowable.just("name", "ysk").map(this::mapper).subscribe(System.out::println);
+    }
+
+    @Test
+    public void fromArray() {
+        List<String> ls = new ArrayList<>();
+        ls.add("Hello");
+        ls.add("World");
+        Flowable.fromArray(ls.toArray()).subscribe(System.out::println);
+    }
+
+    @Test
+    public void empty() {
+        //Although this may not seem useful yet, it is sometimes helpful to create an Observable that emits nothing and
+        //calls onComplete():
+        //An empty Observable is essentially RxJava's concept of null. It is the absence of a value (or technically,
+        //"values"). Empty Observables are much more elegant than nulls because operations will simply continue
+        //empty rather than throw NullPointerExceptions
+        Flowable empty = Flowable.empty();
+        empty.subscribe(System.out::println, throwable -> {
+            ((Throwable) throwable).printStackTrace();
+        }, () -> System.out.print("Done"));
+    }
+
+    @Test
+    public void error() {
+        Flowable.error(new Exception("Crash and burn")).subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.print("Done"));
+        //You can also provide the exception through a lambda so that it is created from scratch and separate
+        //exception instances are provided to each Observer
+        Flowable.error(() -> new Exception("Crash and burn")).subscribe(System.out::println, Throwable::printStackTrace, () -> System.out.print("Done"));
+    }
+
+    @Test
+    public void never() {
+        //This Observable is primarily used for testing and not that often in production. We have to use sleep() here just
+        //like Observable.interval() because the main thread is not going to wait for it after kicking it off
+        Flowable<String> empty = Flowable.never();
+        empty.subscribe(System.out::println,
+                Throwable::printStackTrace,
+                () -> System.out.println("Done!"));
+        sleep(5000);
+    }
+
 
     /********************************************Suppressing operators****************************************/
 
@@ -301,7 +340,7 @@ public class FlowableTest {
     @Test
     public void sorted() {
 
-         Flowable<Integer> flowable = Flowable.just(2, 4, 9, 8, 10);
+        Flowable<Integer> flowable = Flowable.just(2, 4, 9, 8, 10);
 //        If you have a finite Observable<T> emitting items that implement Comparable<T>, you can use sorted() to sort the
 //        emissions. Internally, it will collect all the emissions and then re-emit them in their sorted order
 
@@ -449,11 +488,6 @@ public class FlowableTest {
     }
 
 
-    @Test
-    public void just() {
-        Flowable.just("name", "ysk").map(this::mapper).subscribe(System.out::println);
-    }
-
     private Function<String, String> mapper(String st) {
         return (s) -> "Hello " + s;
     }
@@ -544,10 +578,6 @@ public class FlowableTest {
         Flowable.interval(1, TimeUnit.SECONDS).subscribe(System.out::println);
         TimeUnit.SECONDS.sleep(4);
     }
-
-
-
-
 
 
     @Test
