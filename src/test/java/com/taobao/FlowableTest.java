@@ -2,6 +2,7 @@ package com.taobao;
 
 import io.reactivex.*;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.flowables.ConnectableFlowable;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 import org.junit.Test;
@@ -110,6 +111,61 @@ public class FlowableTest {
         ls.add("Hello");
         ls.add("World");
         Flowable.fromArray(ls.toArray()).subscribe(System.out::println);
+    }
+
+    @Test
+    public void range() {
+        //To emit a consecutive range of integers, you can use Observable.range(). This will emit each number from a
+        //start value and increment each emission until the specified count is reached. These numbers are all passed
+        //through the onNext() event, followed by the onComplete() event
+
+        //Note closely that the two arguments for Observable.range() are not lower/upper bounds. The first argument is
+        //the starting value. The second argument is the total count of emissions, which will include both the initial
+        //value and incremented values
+        Flowable.range(0, 10).subscribe(System.out::println);
+    }
+
+
+    @Test
+    public void interval() throws InterruptedException {
+
+        //However,because it operates on a timer, it needs to run on a separate thread and will run on the computation
+        //Scheduler by default.
+        Flowable.interval(1, TimeUnit.SECONDS).subscribe(System.out::println);
+        TimeUnit.SECONDS.sleep(4);
+    }
+
+    @Test
+    public void interval1() {
+        //Look what happened after five seconds elapsed, when Observer 2 came in. Note that it is on its own
+        //separate timer and starting at 0! These two observers are actually getting their own emissions, each
+        //starting at 0. So this Observable is actually cold
+        Flowable<Long> seconds = Flowable.interval(1,
+                TimeUnit.SECONDS);
+//Observer 1
+        seconds.subscribe(l -> System.out.println("Observer 1: " + l));
+//sleep 5 seconds
+        sleep(5000);
+//Observer 2
+        seconds.subscribe(l -> System.out.println("Observer 2: " + l));
+//sleep 5 seconds
+        sleep(5000);
+    }
+
+    @Test
+    public void interval2() {
+        //To put all observers on the same timer with the same
+        //emissions, you will want to use ConnectableObservable to force these emissions to become hot
+        ConnectableFlowable<Long> seconds = Flowable.interval(1, TimeUnit.SECONDS).publish();
+        //observer 1
+        seconds.subscribe(l -> System.out.println("Observer 1: " + l));
+        seconds.connect();
+//sleep 5 seconds
+        sleep(5000);
+//observer 2
+        seconds.subscribe(l -> System.out.println("Observer 2: " + l));
+//sleep 5 seconds
+        sleep(5000);
     }
 
     @Test
@@ -570,12 +626,6 @@ public class FlowableTest {
         Flowable.just(2, 3, 5, 0, 9, 8).map(i -> 10 / i).retryWhen(throwableFlowable -> Flowable.timer(3, TimeUnit.SECONDS)).subscribe(System.out::println, throwable -> System.out.println("错误了"));
 
 
-        TimeUnit.SECONDS.sleep(4);
-    }
-
-    @Test
-    public void interval() throws InterruptedException {
-        Flowable.interval(1, TimeUnit.SECONDS).subscribe(System.out::println);
         TimeUnit.SECONDS.sleep(4);
     }
 
