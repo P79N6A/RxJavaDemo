@@ -89,6 +89,50 @@ public class FlowableTest {
         Flowable.just("Alpha", "Beta", "Hangzhou", "Beijing").scan(0, (total, next) -> total + next.length()).skip(1).subscribe(System.out::println);
     }
 
+    /********************************************Flowables and Backpressure****************************************/
+
+    @Test
+    public void backpressure() {
+        //The outputted alternation between Constructing MyItem and Received MyItem shows that each emission is bring
+        //processed one at a time from the source all the way to the terminal Observer. This is because one thread is
+        //doing all the work for this entire operation, making everything synchronous. The consumers and producers
+        //are passing emissions in a serialized, consistent flow
+        Observable.range(1, 999)
+                .map(MyItem::new)
+                .subscribe(myItem -> {
+                    sleep(50);
+                    System.out.println("Received MyItem " + myItem.id);
+                });
+    }
+
+    @Test
+    public void backpressure1() {
+        //When you add concurrency operations to an Observable chain (particularly observeOn(), parallelization, and
+        //operators such as delay()), the operation become asynchronous. This means hat multiple parts of the
+        //Observable chain can be processing emissions at a given time, and producers can outpace consumers as they
+        //are now operating on different threads. An emission is no longer strictly being handed downstream one at
+        //a time from the source all the way to the Observer before starting the next one
+        Observable.range(1, 999)
+                .map(MyItem::new)
+                .observeOn(Schedulers.io())
+                .subscribe(myItem -> {
+                    sleep(50);
+                    System.out.println("Received MyItem " + myItem.id);
+                });
+
+        sleep(Integer.MAX_VALUE);
+    }
+
+    static final class MyItem {
+        final int id;
+
+        MyItem(int id) {
+            this.id = id;
+            System.out.println("Constructing MyItem " + id);
+        }
+    }
+
+
     /********************************************Suppressing sources****************************************/
 
     @Test
